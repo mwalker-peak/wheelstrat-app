@@ -46,8 +46,8 @@ const LoginPage = () => {
     
     if (!formData.password) {
       errors.password = 'Password is required'
-    } else if (formData.password.length < 6) {
-      errors.password = 'Password must be at least 6 characters'
+    } else if (formData.password.length < 8) {
+      errors.password = 'Password must be at least 8 characters'
     }
     
     setValidationErrors(errors)
@@ -93,8 +93,8 @@ const LoginPage = () => {
           <div className="mx-auto w-16 h-16 bg-accent rounded-2xl flex items-center justify-center mb-4">
             <span className="text-white font-bold text-2xl">W</span>
           </div>
-          <h1 className="text-3xl font-bold text-white mb-2">Welcome to WheelStrat</h1>
-          <p className="text-gray-300">Professional options trading made simple</p>
+          <h1 className="text-3xl font-bold text-white mb-2">Welcome to PeakDraft</h1>
+          <p className="text-gray-300">Get ideas and track your options trades simply</p>
         </div>
 
         {/* Login Form */}
