@@ -4,9 +4,9 @@ import { useNavigate } from 'react-router-dom'
 import { ChevronRight, ChevronLeft, DollarSign, Target, Shield } from 'lucide-react'
 import Button from '../components/common/Button'
 import Input from '../components/common/Input'
-import Select from '../components/common/Select'
 import Card from '../components/common/Card'
-import { updateProfile, completeSetup } from '../store/slices/userSlice'
+import Alert from '../components/common/Alert'
+import { completeUserSetup } from '../store/slices/userSlice'
 import { ROUTES, MARKET_SECTORS, RISK_LEVELS } from '../constants'
 import { formatCurrency } from '../utils/formatters'
 
@@ -20,7 +20,8 @@ const SetupPage = () => {
 
   const dispatch = useDispatch()
   const navigate = useNavigate()
-  const { loading } = useSelector(state => state.user)
+  const { user } = useSelector(state => state.auth)
+  const { loading, error } = useSelector(state => state.user)
 
   const steps = [
     {
@@ -57,10 +58,28 @@ const SetupPage = () => {
     }
   }
 
-  const handleComplete = () => {
-    dispatch(updateProfile(formData))
-    dispatch(completeSetup())
-    navigate(ROUTES.DASHBOARD)
+  const handleComplete = async () => {
+    if (!user) {
+      console.error('❌ No user found for setup completion')
+      return
+    }
+
+    try {
+      console.log('💾 Saving user setup to Firebase:', formData)
+      
+      await dispatch(completeUserSetup({
+        userId: user.uid,
+        profileData: {
+          profile: formData
+        }
+      })).unwrap()
+      
+      console.log('✅ User setup completed successfully')
+      navigate(ROUTES.DASHBOARD)
+    } catch (error) {
+      console.error('❌ Error completing setup:', error)
+      // Error is handled by Redux and displayed in the UI
+    }
   }
 
   const updateFormData = (updates) => {
@@ -77,7 +96,7 @@ const SetupPage = () => {
         <div className="container mx-auto px-4 py-6">
           <div className="flex items-center space-x-3">
             <div className="w-10 h-10 bg-accent rounded-xl flex items-center justify-center">
-              <span className="text-white font-bold">W</span>
+              <span className="text-white font-bold">P</span>
             </div>
             <div>
               <h1 className="text-xl font-bold text-primary">Investment Profile Setup</h1>
@@ -88,6 +107,13 @@ const SetupPage = () => {
       </div>
 
       <div className="container mx-auto px-4 py-8 max-w-2xl">
+        {/* Error Message */}
+        {error && (
+          <Alert type="error" className="mb-6">
+            Error saving your profile: {error}
+          </Alert>
+        )}
+
         {/* Progress Bar */}
         <div className="mb-8">
           <div className="flex items-center justify-between mb-2">
@@ -137,7 +163,7 @@ const SetupPage = () => {
           <Button
             variant="outline"
             onClick={handleBack}
-            disabled={currentStep === 0}
+            disabled={currentStep === 0 || loading}
             className="flex items-center"
           >
             <ChevronLeft size={16} className="mr-1" />
@@ -147,6 +173,7 @@ const SetupPage = () => {
           <Button
             onClick={handleNext}
             loading={loading && currentStep === steps.length - 1}
+            disabled={loading}
             className="flex items-center"
           >
             {currentStep === steps.length - 1 ? 'Complete Setup' : 'Next'}
@@ -158,7 +185,7 @@ const SetupPage = () => {
   )
 }
 
-// Step Components
+// Step Components (same as before, but cleaner)
 function CapitalStep({ formData, updateFormData }) {
   const [customAmount, setCustomAmount] = useState('')
 

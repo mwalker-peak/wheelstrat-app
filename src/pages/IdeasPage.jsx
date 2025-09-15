@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { useSelector, useDispatch } from 'react-redux'
-import { Filter, RotateCcw, Grid, List, TrendingUp } from 'lucide-react'
+import { Filter, RotateCcw, Grid, List, TrendingUp, Wifi, WifiOff } from 'lucide-react'
 import Card from '../components/common/Card'
 import Button from '../components/common/Button'
 import Badge from '../components/common/Badge'
+import Alert from '../components/common/Alert'
 import LoadingSpinner from '../components/common/LoadingSpinner'
 import Select from '../components/common/Select'
 import Input from '../components/common/Input'
@@ -14,28 +15,104 @@ import { setIdeas, updateFilters, setLoading } from '../store/slices/ideasSlice'
 import { addPosition } from '../store/slices/positionsSlice'
 import { MARKET_SECTORS, DELTA_RANGES } from '../constants'
 import { formatCurrency, formatPercentage } from '../utils/formatters'
+import marketDataService from '../services/marketDataService'
 
 const IdeasPage = () => {
-  const [viewMode, setViewMode] = useState('cards') // 'cards' or 'table'
+  const [viewMode, setViewMode] = useState('table') // 'cards' or 'table'
   const [showFilters, setShowFilters] = useState(false)
+  const [usingMockData, setUsingMockData] = useState(false)
+  const [apiError, setApiError] = useState(null)
+  const [dataSource, setDataSource] = useState('checking') // 'live', 'demo', or 'checking'
+  const [lastRefresh, setLastRefresh] = useState(null)
 
   const dispatch = useDispatch()
   const { profile } = useSelector(state => state.user)
   const { ideas: ideas, filters, loading, error } = useSelector(state => state.ideas)
 
-  // Generate mock ideas based on user profile
-  useEffect(() => {
-    generateIdeas()
-  }, [profile, filters])
-
-  const generateIdeas = async () => {
+  // Generate ideas using real API or fallback to mock data
+  const generateIdeas = useCallback(async () => {
     dispatch(setLoading(true))
+    setUsingMockData(false)
+    setApiError(null)
+    setDataSource('checking')
+    setLastRefresh(new Date())
 
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 1500))
+    try {
+      console.log('🔄 Attempting to fetch real market data...')
+      
+      // 🎯 THIS IS THE FIX - Use the actual market data service
+      const realIdeas = await marketDataService.generateOptionsIdeas(profile)
+      
+      console.log('✅ Successfully fetched real market data:', realIdeas)
+      
+      // Filter ideas based on user preferences
+      let filteredIdeas = realIdeas.filter(rec => {
+        // Filter by DTE
+        if (rec.dte < filters.minDTE || rec.dte > filters.maxDTE) return false
+        
+        // Filter by sectors if specified
+        if (filters.sectors.length > 0 && !filters.sectors.includes(rec.sector)) return false
+        
+        // Filter by probability
+        if (rec.probability < filters.minProbability) return false
+        
+        // Filter by risk level based on user profile
+        const userDeltaRange = DELTA_RANGES[profile.riskTolerance]
+        if (rec.delta < userDeltaRange.min || rec.delta > userDeltaRange.max) return false
+        
+        return true
+      })
 
-  // Mock ideas data
-    const mockIdeas = [
+      // Add expirationDate (ISO) based on the dte value
+      filteredIdeas = filteredIdeas.map(item => ({
+        ...item,
+        expirationDate: new Date(Date.now() + item.dte * 24 * 60 * 60 * 1000).toISOString(),
+      }))
+
+      // Sort by probability descending
+      filteredIdeas.sort((a, b) => b.probability - a.probability)
+
+      dispatch(setIdeas(filteredIdeas))
+      setDataSource('live')
+      setUsingMockData(false)
+      
+    } catch (error) {
+      console.error('❌ API Error, falling back to mock data:', error)
+      setApiError(error.message)
+      setUsingMockData(true)
+      setDataSource('demo')
+      
+      // Generate fallback mock data
+      const mockIdeas = generateMockIdeas()
+      
+      // Filter mock data the same way
+      let filteredIdeas = mockIdeas.filter(rec => {
+        if (rec.dte < filters.minDTE || rec.dte > filters.maxDTE) return false
+        if (filters.sectors.length > 0 && !filters.sectors.includes(rec.sector)) return false
+        if (rec.probability < filters.minProbability) return false
+        
+        const userDeltaRange = DELTA_RANGES[profile.riskTolerance]
+        if (rec.delta < userDeltaRange.min || rec.delta > userDeltaRange.max) return false
+        
+        return true
+      })
+
+      // Add expiration dates
+      filteredIdeas = filteredIdeas.map(item => ({
+        ...item,
+        expirationDate: new Date(Date.now() + item.dte * 24 * 60 * 60 * 1000).toISOString(),
+      }))
+
+      filteredIdeas.sort((a, b) => b.probability - a.probability)
+      dispatch(setIdeas(filteredIdeas))
+    }
+
+    dispatch(setLoading(false))
+  }, [dispatch, filters, profile])
+
+  // Generate mock ideas when API fails
+  const generateMockIdeas = () => {
+    return [
       {
         id: 1,
         symbol: 'AAPL',
@@ -142,42 +219,23 @@ const IdeasPage = () => {
         trend: 'stable'
       }
     ]
-
-  // Filter ideas based on user preferences
-  let filteredIdeas = mockIdeas.filter(rec => {
-      // Filter by DTE
-      if (rec.dte < filters.minDTE || rec.dte > filters.maxDTE) return false
-      
-      // Filter by sectors if specified
-      if (filters.sectors.length > 0 && !filters.sectors.includes(rec.sector)) return false
-      
-      // Filter by probability
-      if (rec.probability < filters.minProbability) return false
-      
-      // Filter by risk level based on user profile
-      const userDeltaRange = DELTA_RANGES[profile.riskTolerance]
-      if (rec.delta < userDeltaRange.min || rec.delta > userDeltaRange.max) return false
-      
-      return true
-    })
-
-    // Sort by probability descending
-    filteredIdeas.sort((a, b) => b.probability - a.probability)
-
-  dispatch(setIdeas(filteredIdeas))
-    dispatch(setLoading(false))
   }
 
-  const handleTakePosition = (ideas) => {
+  // Fetch ideas when component mounts or filters change
+  useEffect(() => {
+    generateIdeas()
+  }, [generateIdeas])
+
+  const handleTakePosition = (idea) => {
     const position = {
-      symbol: ideas.symbol,
-      companyName: ideas.companyName,
-      sector: ideas.sector,
-      strikePrice: ideas.strikePrice,
-      premium: ideas.premium,
-      dte: ideas.dte,
-      delta: ideas.delta,
-      probability: ideas.probability,
+      symbol: idea.symbol,
+      companyName: idea.companyName,
+      sector: idea.sector,
+      strikePrice: idea.strikePrice,
+      premium: idea.premium,
+      dte: idea.dte,
+      delta: idea.delta,
+      probability: idea.probability,
       contracts: 1, // Default to 1 contract
       type: 'cash_secured_put',
       currentPnL: 0,
@@ -185,8 +243,8 @@ const IdeasPage = () => {
 
     dispatch(addPosition(position))
     
-    // Show success message or redirect
-    alert(`Position opened: ${ideas.symbol} $${ideas.strikePrice} Put`)
+    // Show success message
+    alert(`Position opened: ${idea.symbol} $${idea.strikePrice} Put`)
   }
 
   const resetFilters = () => {
@@ -198,16 +256,59 @@ const IdeasPage = () => {
     }))
   }
 
+  const formatLastRefresh = () => {
+    if (!lastRefresh) return ''
+    const now = new Date()
+    const diff = Math.floor((now - lastRefresh) / 1000)
+    
+    if (diff < 60) return `${diff}s ago`
+    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`
+    return `${Math.floor(diff / 3600)}h ago`
+  }
+
   return (
     <div className="space-y-6">
+      {/* Data Source Alert */}
+      {usingMockData && (
+        <Alert 
+          type="warning"
+          title="Using Demo Data"
+          className="mb-4"
+        >
+          {apiError ? (
+            <>API Error: {apiError}. Showing sample data for testing.</>
+          ) : (
+            <>Showing sample data for demonstration purposes.</>
+          )}
+        </Alert>
+      )}
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-primary mb-2">
-            Options Ideas
-          </h1>
+          <div className="flex items-center space-x-2 mb-2">
+            <h1 className="text-2xl font-bold text-primary">Options Ideas</h1>
+            {dataSource === 'live' ? (
+              <div className="flex items-center space-x-1 text-success">
+                <Wifi size={16} />
+                <span className="text-xs">Live Data</span>
+              </div>
+            ) : dataSource === 'demo' ? (
+              <div className="flex items-center space-x-1 text-orange-500">
+                <WifiOff size={16} />
+                <span className="text-xs">Demo Data</span>
+              </div>
+            ) : (
+              <div className="flex items-center space-x-1 text-muted">
+                <span className="text-xs">Checking...</span>
+              </div>
+            )}
+          </div>
           <p className="text-muted">
-            Personalized cash-secured put opportunities based on your profile
+            Personalized cash-secured put opportunities
+            {lastRefresh && (
+              <span className="text-xs ml-2">• Updated {formatLastRefresh()}</span>
+            )}
           </p>
         </div>
 
@@ -311,8 +412,11 @@ const IdeasPage = () => {
 
       {/* Loading State */}
       {loading && (
-        <div className="flex justify-center py-12">
+        <div className="flex flex-col items-center justify-center py-12">
           <LoadingSpinner size={48} />
+          <p className="text-muted mt-4">
+            {dataSource === 'checking' ? 'Fetching live market data...' : 'Loading ideas...'}
+          </p>
         </div>
       )}
 
@@ -351,6 +455,7 @@ const IdeasPage = () => {
                       idea={idea}
                       onTakePosition={handleTakePosition}
                       maxInvestment={profile.investmentCapital}
+                      isLiveData={dataSource === 'live'}
                     />
                   ))}
                 </div>
@@ -359,6 +464,7 @@ const IdeasPage = () => {
                   ideas={ideas}
                   onTakePosition={handleTakePosition}
                   maxInvestment={profile.investmentCapital}
+                  isLiveData={dataSource === 'live'}
                 />
               )}
             </>

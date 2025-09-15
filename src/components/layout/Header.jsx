@@ -1,9 +1,8 @@
-// FILE: src/components/layout/Header.jsx
 import React, { useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useSelector, useDispatch } from 'react-redux'
 import { Menu, X, User, LogOut, Settings } from 'lucide-react'
-import { logout } from '../../store/slices/authSlice'
+import { signOutUser } from '../../store/slices/authSlice'
 import { ROUTES } from '../../constants'
 
 const Header = () => {
@@ -14,9 +13,16 @@ const Header = () => {
   const dispatch = useDispatch()
   const { user } = useSelector(state => state.auth)
 
-  const handleLogout = () => {
-    dispatch(logout())
-    navigate(ROUTES.LOGIN)
+  const handleLogout = async () => {
+    try {
+      await dispatch(signOutUser()).unwrap()
+      console.log('✅ User signed out successfully')
+      navigate(ROUTES.LOGIN)
+    } catch (error) {
+      console.error('❌ Sign out failed:', error)
+      // Force navigation even if sign out fails
+      navigate(ROUTES.LOGIN)
+    }
   }
 
   const navigationItems = [
@@ -41,9 +47,9 @@ const Header = () => {
           {/* Desktop Logo - Hidden on mobile */}
           <Link to={ROUTES.DASHBOARD} className="hidden md:flex items-center space-x-2">
             <div className="w-8 h-8 bg-accent rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-sm">W</span>
+              <span className="text-white font-bold text-sm">P</span>
             </div>
-            <span className="text-xl font-bold text-primary">WheelStrat</span>
+            <span className="text-xl font-bold text-primary">PeakDraft</span>
           </Link>
 
           {/* Desktop Navigation */}
@@ -52,7 +58,7 @@ const Header = () => {
               <Link
                 key={item.name}
                 to={item.path}
-                className={`flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
                   location.pathname === item.path
                     ? 'text-accent bg-accent/10'
                     : 'text-muted hover:text-primary'
@@ -74,12 +80,18 @@ const Header = () => {
                 <User size={16} className="hidden md:block text-white" />
               </div>
               <span className="hidden md:block text-sm font-medium text-gray-700">
-                {user?.name || 'User'}
+                {user?.displayName || user?.email?.split('@')[0] || 'User'}
               </span>
             </button>
 
             {isUserMenuOpen && (
               <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg border border-gray-200 py-1 z-50">
+                <div className="px-4 py-2 border-b border-gray-100">
+                  <p className="text-sm font-medium text-gray-900">
+                    {user?.displayName || 'User'}
+                  </p>
+                  <p className="text-xs text-gray-500">{user?.email}</p>
+                </div>
                 <Link
                   to={ROUTES.PROFILE}
                   className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
@@ -121,6 +133,12 @@ const Header = () => {
               
               {/* Mobile-only user actions */}
               <div className="pt-3 mt-3 border-t border-gray-200">
+                <div className="px-3 py-2">
+                  <p className="text-sm font-medium text-gray-900">
+                    {user?.displayName || 'User'}
+                  </p>
+                  <p className="text-xs text-gray-500">{user?.email}</p>
+                </div>
                 <Link
                   to={ROUTES.PROFILE}
                   className="flex items-center px-3 py-2 text-base font-medium text-muted hover:text-primary hover:bg-gray-50 rounded-md"

@@ -2,7 +2,7 @@ import React from 'react'
 import { TrendingUp, TrendingDown, Activity } from 'lucide-react'
 import Button from '../common/Button'
 import Badge from '../common/Badge'
-import { formatCurrency, formatPercentage } from '../../utils/formatters'
+import { formatCurrency, formatPercentage, formatDate } from '../../utils/formatters'
 
 const IdeaTable = ({ ideas, onTakePosition, maxInvestment }) => {
   const getRiskColor = (level) => {
@@ -33,6 +33,7 @@ const IdeaTable = ({ ideas, onTakePosition, maxInvestment }) => {
             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Symbol</th>
             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Strike</th>
             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Premium</th>
+            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Expiration Date</th>
             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">DTE</th>
             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prob.</th>
             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Volume</th>
@@ -65,6 +66,9 @@ const IdeaTable = ({ ideas, onTakePosition, maxInvestment }) => {
                 </td>
                 <td className="px-4 py-4 whitespace-nowrap">
                   <span className="font-medium text-accent">{formatCurrency(rec.premium)}</span>
+                </td>
+                <td className="px-4 py-4 whitespace-nowrap">
+                  <span className="font-medium">{formatDate(rec.expirationDate)}</span>
                 </td>
                 <td className="px-4 py-4 whitespace-nowrap">
                   <span className="font-medium">{rec.dte}</span>

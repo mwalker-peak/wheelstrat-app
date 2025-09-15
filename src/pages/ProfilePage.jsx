@@ -18,13 +18,24 @@ const ProfilePage = () => {
   const { user } = useSelector(state => state.auth)
   const { profile } = useSelector(state => state.user)
 
+  // Initialize form data when profile loads
+  React.useEffect(() => {
+    if (profile) {
+      setFormData(profile)
+    }
+  }, [profile])
+
   const handleEdit = () => {
-    setFormData({ ...profile })
+    setFormData(current => ({
+      ...current,
+      name: user?.displayName || profile?.name || '',
+      ...profile
+    }))
     setIsEditing(true)
   }
 
   const handleCancel = () => {
-    setFormData({})
+    setFormData(profile || {})
     setIsEditing(false)
   }
 
@@ -116,7 +127,17 @@ const ProfilePage = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
-            <p className="text-primary font-medium">{user?.name || 'Not provided'}</p>
+            {isEditing ? (
+              <Input
+                value={formData.name || ''}
+                onChange={(e) => handleChange('name', e.target.value)}
+                placeholder="Enter your name"
+              />
+            ) : (
+              <p className="text-primary font-medium">
+                {user?.displayName || profile?.name || 'Not provided'}
+              </p>
+            )}
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
